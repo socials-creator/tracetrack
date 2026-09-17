@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Draw the Grid — F1 2026 Circuits</title>
+<meta name="description" content="Draw the 2026 Formula 1 circuits from memory and see how close you get.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --asphalt: #0c0d10;
+    --asphalt-2: #131519;
+    --line: #24272e;
+    --paper: #e8e6de;
+    --paper-dim: #9a988f;
+    --accent: #c9ff4d;
+    --accent-dim: #8fb838;
+    --purple: #8b7cff;
+    --red: #ff5a5a;
+    --radius: 2px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--asphalt);
+    color:var(--paper);
+    font-family:'Rajdhani',sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x:hidden;
+  }
+
+  .bg-grid{
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 42px 42px;
+    opacity:.35;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .stripe{
+    position:fixed; top:0; left:0; right:0; height:5px;
+    background: repeating-linear-gradient(90deg, var(--accent) 0 28px, transparent 28px 56px);
+    z-index:5;
+  }
+
+  .screen{
+    position:relative; z-index:1;
+    min-height:100vh;
+    display:none;
+    flex-direction:column;
+    align-items:center;
+  }
+  .screen.active{display:flex;}
+
+  /* ---------- HOME ---------- */
+  #home{ justify-content:center; padding:32px 20px 60px; text-align:center; }
+  .kicker{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    color:var(--accent);
+    margin-bottom:18px;
+  }
+  .kicker span{color:var(--paper-dim);}
+  h1.title{
+    font-size:clamp(40px, 9vw, 84px);
+    line-height:.92;
+    font-weight:700;
+    margin:0 0 10px;
+    letter-spacing:-.01em;
+  }
+  h1.title em{
+    font-style:normal;
+    color:var(--asphalt);
+    background:var(--accent);
+    padding:0 10px;
+    display:inline-block;
+  }
+  .lede{
+    max-width:480px;
+    color:var(--paper-dim);
+    font-size:19px;
+    line-height:1.5;
+    margin:0 auto 36px;
+  }
+  .btn{
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    font-size:20px;
+    letter-spacing:.02em;
+    border:none;
+    cursor:pointer;
+    padding:16px 36px;
+    border-radius:var(--radius);
+    background:var(--accent);
+    color:var(--asphalt);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform:translateY(-2px); box-shadow:0 6px 0 var(--accent-dim); }
+  .btn:active{ transform:translateY(1px); box-shadow:none; }
+  .btn.ghost{
+    background:transparent;
+    color:var(--paper);
+    border:1.5px solid var(--line);
+  }
+  .btn.ghost:hover{ border-color:var(--paper-dim); box-shadow:none; }
+  .btn.small{ padding:10px 20px; font-size:16px; }
+
+  .home-stats{
+    margin-top:46px;
+    display:flex; gap:36px; flex-wrap:wrap; justify-content:center;
+  }
+  .stat{ text-align:left; min-width:96px; }
+  .stat .n{ font-family:'IBM Plex Mono',monospace; font-size:28px; color:var(--accent); font-weight:600; }
+  .stat .l{ font-size:13px; color:var(--paper-dim); letter-spacing:.08em; text-transform:uppercase; }
+
+  .home-lights{ display:flex; gap:8px; margin-bottom:26px; }
+  .home-lights i{
+    width:14px; height:14px; border-radius:50%;
+    background:var(--line);
+    display:block;
+  }
+  .home-lights i.on{ background:var(--red); box-shadow:0 0 14px var(--red); }
+
+  /* ---------- GAME ---------- */
+  #game{ padding:0 0 28px; width:100%; align-items:center; }
+  .topbar{
+    width:100%;
+    max-width:760px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    padding:22px 18px 10px;
+    gap:12px;
+  }
+  .rnd{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--accent);
+    letter-spacing:.1em;
+  }
+  .gpname{
+    font-size:clamp(26px,6vw,38px);
+    font-weight:700;
+    line-height:1;
+    margin-top:4px;
+  }
+  .gpcountry{ color:var(--paper-dim); font-size:15px; margin-top:2px; }
+  .quit{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--paper-dim);
+    background:none;border:none;cursor:pointer;
+    letter-spacing:.08em;
+    padding:6px;
+  }
+  .quit:hover{ color:var(--paper); }
+
+  .canvas-wrap{
+    position:relative;
+    width:min(94vw, 760px);
+    aspect-ratio: 5/3;
+    margin:10px 0 14px;
+    border:1.5px solid var(--line);
+    background:var(--asphalt-2);
+    touch-action:none;
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .canvas-wrap canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .hint{
+    position:absolute; top:12px; left:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px; letter-spacing:.08em;
+    color:var(--paper-dim);
+    pointer-events:none;
+  }
+  .hint.hidden{display:none;}
+
+  .controls{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center;
+    width:min(94vw,760px);
+  }
+
+  /* ---------- RESULT ---------- */
+  #result{ padding:0 0 40px; width:100%; align-items:center; }
+  .score-hero{
+    display:flex; flex-direction:column; align-items:center;
+    margin:26px 0 6px;
+  }
+  .score-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:clamp(56px,14vw,104px);
+    line-height:1;
+    color:var(--accent);
+  }
+  .score-num sup{ font-size:.32em; top:-.6em; color:var(--paper-dim); }
+  .grade{
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:.03em;
+    margin-top:6px;
+    padding:4px 14px;
+    border:1.5px solid currentColor;
+    border-radius:20px;
+  }
+  .grade.pole{ color:var(--accent); }
+  .grade.podium{ color:#8fd1ff; }
+  .grade.points{ color:var(--purple); }
+  .grade.out{ color:var(--paper-dim); }
+  .grade.dnf{ color:var(--red); }
+
+  .legend{
+    display:flex; gap:22px; margin:16px 0 4px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim);
+  }
+  .legend span{ display:flex; align-items:center; gap:7px; }
+  .swatch{ width:16px; height:3px; display:inline-block; border-radius:2px;}
+  .swatch.you{ background:var(--accent); }
+  .swatch.real{ background:var(--paper-dim); border-top:2px dashed var(--paper-dim); height:0;}
+
+  .result-actions{
+    display:flex; gap:12px; margin-top:22px; flex-wrap:wrap; justify-content:center;
+  }
+
+  /* ---------- SEASON MENU ---------- */
+  #seasonBtn{ margin-top:14px; }
+  .overlay{
+    position:fixed; inset:0; z-index:20;
+    background:rgba(6,6,8,.86);
+    display:none;
+    align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .overlay.active{ display:flex; }
+  .panel{
+    background:var(--asphalt-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    max-width:640px; width:100%;
+    max-height:82vh; overflow:auto;
+    padding:22px;
+  }
+  .panel h2{ margin:0 0 4px; font-size:24px; }
+  .panel p.sub{ color:var(--paper-dim); margin:0 0 18px; font-size:14px; }
+  .grid-list{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+    gap:8px;
+  }
+  .chip{
+    text-align:left;
+    background:var(--asphalt);
+    border:1px solid var(--line);
+    color:var(--paper);
+    border-radius:4px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-family:'Rajdhani',sans-serif;
+  }
+  .chip:hover{ border-color:var(--paper-dim); }
+  .chip .rn{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-dim); }
+  .chip .gn{ font-weight:600; font-size:15px; margin-top:1px; }
+  .chip .sc{ font-family:'IBM Plex Mono',monospace; font-size:12px; margin-top:3px; }
+  .chip.done .sc{ color:var(--accent); }
+  .chip.done{ border-color:var(--accent-dim); }
+  .panel-close{
+    margin-top:18px;
+  }
+
+  footer.credits{
+    position:relative; z-index:1;
+    text-align:center;
+    color:var(--paper-dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:20px 20px 34px;
+    letter-spacing:.04em;
+  }
+
+  @media (max-width:480px){
+    .home-stats{ gap:22px; }
+    .legend{ gap:14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="stripe"></div>
+
+<!-- ============ HOME ============ -->
+<section id="home" class="screen active">
+  <div class="home-lights" id="lights">
+    <i></i><i></i><i></i><i></i><i></i>
+  </div>
+  <div class="kicker">FORMULA 1 <span>· 2026 SEASON · 24 ROUNDS</span></div>
+  <h1 class="title">DRAW THE<br><em>GRID</em></h1>
+  <p class="lede">You get the name of the Grand Prix. You draw the circuit from memory. The line judges you.</p>
+  <button class="btn" id="startBtn">Start Lap</button>
+  <div class="home-stats">
+    <div class="stat"><div class="n" id="statPlayed">0</div><div class="l">Circuits Drawn</div></div>
+    <div class="stat"><div class="n" id="statAvg">—</div><div class="l">Season Average</div></div>
+    <div class="stat"><div class="n" id="statBest">—</div><div class="l">Best Lap</div></div>
+  </div>
+</section>
+
+<!-- ============ GAME ============ -->
+<section id="game" class="screen">
+  <div class="topbar">
+    <div>
+      <div class="rnd" id="roundLabel">ROUND 01 / 24</div>
+      <div class="gpname" id="gpName">Australian GP</div>
+      <div class="gpcountry" id="gpCircuit">Albert Park, Melbourne</div>
+    </div>
+    <button class="quit" id="quitBtn">EXIT ▸</button>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="drawCanvas"></canvas>
+    <div class="hint" id="drawHint">TRACE THE LAYOUT</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn ghost small" id="undoBtn">Undo Stroke</button>
+    <button class="btn ghost small" id="clearBtn">Clear</button>
+    <button class="btn small" id="submitBtn">Checkered Flag</button>
+  </div>
+</section>
+
+<!-- ============ RESULT ============ -->
+<section id="result" class="screen">
+  <div class="rnd" id="resultRound">ROUND 01 / 24</div>
+  <div class="gpname" id="resultName" style="margin-top:2px;">Australian GP</div>
+
+  <div class="score-hero">
+    <div class="score-num" id="scoreNum">0<sup>%</sup></div>
+    <div class="grade" id="scoreGrade">DNF</div>
+  </div>
+
+  <div class="canvas-wrap" id="resultCanvasWrap" style="margin-top:8px;">
+    <canvas id="resultCanvas"></canvas>
+  </div>
+  <div class="legend">
+    <span><i class="swatch you"></i> Your line</span>
+    <span><i class="swatch real"></i> Actual circuit</span>
+  </div>
+
+  <div class="result-actions">
+    <button class="btn ghost small" id="retryBtn">Redraw This One</button>
+    <button class="btn small" id="nextBtn">Next Circuit →</button>
+  </div>
+  <button class="btn ghost small" id="seasonBtn">View Full Calendar</button>
+</section>
+
+<footer class="credits">2026 F1 CALENDAR · 24 ROUNDS · SHAPES ARE STYLISED, NOT SURVEY-ACCURATE</footer>
+
+<!-- ============ SEASON OVERLAY ============ -->
+<div class="overlay" id="seasonOverlay">
+  <div class="panel">
+    <h2>2026 Calendar</h2>
+    <p class="sub">Jump to any round. Circuits you've already drawn show your score.</p>
+    <div class="grid-list" id="seasonGrid"></div>
+    <button class="btn ghost small panel-close" id="closeOverlay">Close</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   1. CIRCUIT DATA — 2026 FIA Formula 1 World Championship
+   Outlines are simplified, stylised silhouettes (closed loops,
+   plotted on a 1000x600 canvas) capturing each track's
+   characteristic shape — not survey-precise GPS traces.
+   ============================================================ */
+const CIRCUITS = [
+{ gp:"Australian Grand Prix", circuit:"Albert Park, Melbourne", country:"Australia",
+  path:[[300,80],[500,60],[650,90],[750,180],[770,280],[700,370],[550,420],[380,430],[230,400],[120,330],[90,230],[140,140],[220,100]] },
+{ gp:"Chinese Grand Prix", circuit:"Shanghai International Circuit", country:"China",
+  path:[[150,220],[130,180],[160,140],[210,130],[240,160],[220,200],[260,230],[400,150],[600,120],[750,150],[820,230],[800,320],[700,380],[500,400],[300,390],[180,340],[130,280]] },
+{ gp:"Japanese Grand Prix", circuit:"Suzuka Circuit", country:"Japan",
+  path:[[150,300],[200,200],[320,150],[420,180],[480,260],[560,220],[600,150],[700,130],[800,180],[830,280],[780,360],[680,400],[600,350],[520,380],[430,420],[320,400],[250,350]] },
+{ gp:"Bahrain Grand Prix", circuit:"Bahrain International Circuit, Sakhir", country:"Bahrain",
+  path:[[200,150],[400,100],[600,120],[750,200],[780,320],[650,400],[450,420],[280,380],[160,300],[130,220]] },
+{ gp:"Saudi Arabian Grand Prix", circuit:"Jeddah Corniche Circuit", country:"Saudi Arabia",
+  path:[[100,300],[150,200],[280,140],[420,160],[500,120],[620,140],[720,200],[800,280],[770,350],[650,390],[500,410],[350,400],[220,370],[130,340]] },
+{ gp:"Miami Grand Prix", circuit:"Miami International Autodrome", country:"United States",
+  path:[[200,350],[180,260],[230,180],[340,140],[460,150],[520,120],[620,140],[700,200],[720,280],[670,350],[560,400],[420,410],[300,400]] },
+{ gp:"Canadian Grand Prix", circuit:"Circuit Gilles Villeneuve, Montreal", country:"Canada",
+  path:[[150,300],[180,250],[250,220],[300,260],[350,230],[420,240],[500,220],[600,230],[700,250],[780,290],[770,340],[650,370],[500,380],[350,370],[220,350]] },
+{ gp:"Monaco Grand Prix", circuit:"Circuit de Monaco", country:"Monaco",
+  path:[[200,350],[180,300],[220,250],[300,220],[340,170],[300,120],[350,90],[430,100],[460,150],[550,140],[650,160],[720,220],[700,280],[620,300],[600,350],[520,380],[430,360],[380,320],[300,340],[240,380]] },
+{ gp:"Spanish Grand Prix", circuit:"Circuit de Barcelona-Catalunya", country:"Spain",
+  path:[[200,300],[220,220],[300,160],[420,140],[500,180],[560,150],[650,170],[730,230],[720,310],[650,360],[550,340],[500,380],[400,400],[300,380],[220,350]] },
+{ gp:"Austrian Grand Prix", circuit:"Red Bull Ring, Spielberg", country:"Austria",
+  path:[[300,150],[450,120],[600,160],[650,250],[600,340],[480,390],[350,370],[280,300],[260,220]] },
+{ gp:"British Grand Prix", circuit:"Silverstone Circuit", country:"United Kingdom",
+  path:[[200,300],[180,230],[230,160],[330,130],[400,170],[460,140],[560,120],[650,150],[720,220],[700,290],[620,320],[600,380],[500,410],[400,390],[350,340],[280,360],[220,340]] },
+{ gp:"Belgian Grand Prix", circuit:"Circuit de Spa-Francorchamps", country:"Belgium",
+  path:[[350,100],[300,130],[320,180],[400,200],[500,170],[600,190],[680,150],[760,180],[800,260],[760,340],[650,380],[520,400],[400,380],[320,340],[280,280],[300,220],[250,190],[220,140],[280,110]] },
+{ gp:"Hungarian Grand Prix", circuit:"Hungaroring", country:"Hungary",
+  path:[[300,150],[450,120],[580,150],[650,220],[630,310],[540,370],[420,390],[310,360],[250,290],[240,210]] },
+{ gp:"Dutch Grand Prix", circuit:"Circuit Zandvoort", country:"Netherlands",
+  path:[[250,150],[400,120],[500,160],[480,220],[560,240],[650,200],[720,250],[740,330],[660,390],[540,400],[430,380],[350,340],[280,360],[220,310],[210,230]] },
+{ gp:"Italian Grand Prix", circuit:"Autodromo Nazionale Monza", country:"Italy",
+  path:[[200,200],[350,160],[500,180],[520,220],[560,210],[700,170],[780,220],[790,300],[700,350],[600,330],[560,360],[450,400],[300,390],[220,340],[180,260]] },
+{ gp:"Spanish Grand Prix", circuit:"Madring Circuit, Madrid", country:"Spain",
+  path:[[250,200],[400,150],[550,170],[650,230],[700,300],[650,370],[520,400],[400,380],[380,320],[300,340],[220,300],[200,240]] },
+{ gp:"Azerbaijan Grand Prix", circuit:"Baku City Circuit", country:"Azerbaijan",
+  path:[[150,350],[130,300],[180,260],[250,270],[300,230],[280,190],[330,150],[400,160],[420,120],[500,110],[600,120],[720,140],[800,170],[790,230],[500,250],[300,270],[180,320]] },
+{ gp:"Singapore Grand Prix", circuit:"Marina Bay Street Circuit", country:"Singapore",
+  path:[[200,150],[500,140],[700,160],[750,230],[700,280],[600,270],[580,340],[650,390],[550,420],[400,400],[380,340],[280,360],[220,320],[180,250]] },
+{ gp:"United States Grand Prix", circuit:"Circuit of the Americas, Austin", country:"United States",
+  path:[[150,250],[200,180],[280,150],[340,190],[400,160],[460,190],[520,150],[600,170],[680,140],[760,180],[780,260],[720,330],[600,360],[480,380],[350,370],[250,340],[180,300]] },
+{ gp:"Mexico City Grand Prix", circuit:"Autódromo Hermanos Rodríguez", country:"Mexico",
+  path:[[200,300],[220,220],[300,170],[420,180],[500,140],[620,150],[700,200],[720,280],[650,340],[600,320],[560,360],[480,390],[380,380],[300,350],[220,340]] },
+{ gp:"São Paulo Grand Prix", circuit:"Autódromo José Carlos Pace, Interlagos", country:"Brazil",
+  path:[[300,150],[380,130],[420,170],[380,210],[430,240],[550,220],[650,250],[700,320],[630,380],[500,400],[380,380],[300,340],[250,280],[230,210]] },
+{ gp:"Las Vegas Grand Prix", circuit:"Las Vegas Strip Circuit", country:"United States",
+  path:[[150,300],[180,250],[300,230],[500,220],[700,230],[800,260],[780,320],[600,340],[400,350],[220,340]] },
+{ gp:"Qatar Grand Prix", circuit:"Losail International Circuit", country:"Qatar",
+  path:[[250,180],[400,140],[550,150],[650,200],[700,270],[650,340],[520,380],[380,370],[280,330],[220,270],[210,220]] },
+{ gp:"Abu Dhabi Grand Prix", circuit:"Yas Marina Circuit", country:"United Arab Emirates",
+  path:[[250,200],[400,150],[550,160],[620,210],[600,270],[680,300],[700,360],[600,400],[470,390],[400,350],[320,370],[240,330],[200,270]] }
+];
+
+CIRCUITS.forEach((c,i)=>{ c.round = i+1; c.id = i; });
+
+/* ============================================================
+   2. STATE / PERSISTENCE
+   ============================================================ */
+const LS_KEY = "f1draw2026_scores";
+function loadScores(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch(e){ return {}; }
+}
+function saveScores(obj){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){}
+}
+let scores = loadScores();
+
+let order = [];
+let orderPos = 0;
+let current = null;
+let lastScore = 0;
+
+function buildOrder(){
+  order = CIRCUITS.map(c=>c.id);
+  for(let i=order.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [order[i],order[j]] = [order[j],order[i]];
+  }
+  orderPos = 0;
+}
+
+function updateHomeStats(){
+  const vals = Object.values(scores);
+  document.getElementById("statPlayed").textContent = vals.length;
+  if(vals.length){
+    const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+    document.getElementById("statAvg").textContent = avg + "%";
+    document.getElementById("statBest").textContent = Math.max(...vals) + "%";
+  } else {
+    document.getElementById("statAvg").textContent = "—";
+    document.getElementById("statBest").textContent = "—";
+  }
+}
+updateHomeStats();
+
+/* start lights animation on home */
+(function lights(){
+  const lis = document.querySelectorAll("#lights i");
+  let n=0;
+  setInterval(()=>{
+    lis.forEach((l,idx)=> l.classList.toggle("on", idx<n));
+    n = (n+1) % 6;
+  }, 480);
+})();
+
+/* ============================================================
+   3. SCREEN NAV
+   ============================================================ */
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+document.getElementById("startBtn").addEventListener("click", ()=>{
+  buildOrder();
+  loadCircuit(CIRCUITS[order[orderPos]]);
+  show("game");
+});
+
+document.getElementById("quitBtn").addEventListener("click", ()=>{
+  show("home");
+  updateHomeStats();
+});
+
+/* ============================================================
+   4. DRAWING CANVAS
+   ============================================================ */
+const wrap = document.getElementById("canvasWrap");
+const canvas = document.getElementById("drawCanvas");
+const ctx = canvas.getContext("2d");
+let strokes = [];      // array of strokes; each stroke = array of {x,y} in canvas pixel space
+let activeStroke = null;
+let drawing = false;
+
+function fitCanvas(cv){
+  const rect = cv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(rect.width * dpr);
+  cv.height = Math.round(rect.height * dpr);
+  cv.getContext("2d").setTransform(dpr,0,0,dpr,0,0);
+}
+
+function redrawDraw(){
+  fitCanvas(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.lineJoin="round"; ctx.lineCap="round";
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  ctx.lineWidth = 5;
+  strokes.forEach(st=>{
+    if(st.length<2) return;
+    ctx.beginPath();
+    ctx.moveTo(st[0].x, st[0].y);
+    for(let i=1;i<st.length;i++) ctx.lineTo(st[i].x, st[i].y);
+    ctx.stroke();
+  });
+}
+
+function pos(e, cv){
+  const rect = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}
+
+function ptrDown(e){
+  e.preventDefault();
+  drawing = true;
+  activeStroke = [pos(e, canvas)];
+  strokes.push(activeStroke);
+  document.getElementById("drawHint").classList.add("hidden");
+}
+function ptrMove(e){
+  if(!drawing) return;
+  e.preventDefault();
+  activeStroke.push(pos(e, canvas));
+  redrawDraw();
+}
+function ptrUp(e){
+  drawing = false;
+  activeStroke = null;
+}
+
+canvas.addEventListener("mousedown", ptrDown);
+canvas.addEventListener("mousemove", ptrMove);
+window.addEventListener("mouseup", ptrUp);
+canvas.addEventListener("touchstart", ptrDown, {passive:false});
+canvas.addEventListener("touchmove", ptrMove, {passive:false});
+canvas.addEventListener("touchend", ptrUp);
+
+window.addEventListener("resize", ()=>{
+  if(document.getElementById("game").classList.contains("active")) redrawDraw();
+});
+
+document.getElementById("clearBtn").addEventListener("click", ()=>{
+  strokes = [];
+  redrawDraw();
+  document.getElementById("drawHint").classList.remove("hidden");
+});
+document.getElementById("undoBtn").addEventListener("click", ()=>{
+  strokes.pop();
+  redrawDraw();
+  if(strokes.length===0) document.getElementById("drawHint").classList.remove("hidden");
+});
+
+function loadCircuit(c){
+  current = c;
+  strokes = [];
+  document.getElementById("roundLabel").textContent = "ROUND " + String(c.round).padStart(2,"0") + " / 24";
+  document.getElementById("gpName").textContent = c.gp;
+  document.getElementById("gpCircuit").textContent = c.circuit + " · " + c.country;
+  document.getElementById("drawHint").classList.remove("hidden");
+  requestAnimationFrame(redrawDraw);
+}
+
+/* ============================================================
+   5. SCORING
+   Resample both paths to N points around the closed loop,
+   normalize for position/scale, then find the best cyclic
+   rotation + direction alignment (since the player can start
+   drawing anywhere, in either direction) and score on RMS
+   distance between corresponding points.
+   ============================================================ */
+const N = 64;
+
+function pathLength(pts){
+  let d=0;
+  for(let i=1;i<pts.length;i++){
+    d += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  }
+  return d;
+}
+
+function resampleClosed(pts, n){
+  // pts: array of {x,y}, treated as a closed loop (last connects to first)
+  if(pts.length < 2) return null;
+  const loop = pts.concat([pts[0]]);
+  const total = pathLength(loop);
+  if(total < 1e-6) return null;
+  const step = total/n;
+  const out = [];
+  let segIdx = 0, segStart = 0;
+  let acc = 0;
+  out.push({x:loop[0].x,y:loop[0].y});
+  for(let k=1;k<n;k++){
+    const target = k*step;
+    while(segIdx < loop.length-2 && acc + dist(loop[segIdx],loop[segIdx+1]) < target){
+      acc += dist(loop[segIdx],loop[segIdx+1]);
+      segIdx++;
+    }
+    const segLen = dist(loop[segIdx],loop[segIdx+1]) || 1e-6;
+    const t = Math.min(1, Math.max(0, (target-acc)/segLen));
+    out.push({
+      x: loop[segIdx].x + (loop[segIdx+1].x-loop[segIdx].x)*t,
+      y: loop[segIdx].y + (loop[segIdx+1].y-loop[segIdx].y)*t
+    });
+  }
+  return out;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function normalize(pts){
+  const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  let scale = 0;
+  pts.forEach(p=> scale += Math.hypot(p.x-cx,p.y-cy));
+  scale = scale/pts.length || 1;
+  return pts.map(p=>({ x:(p.x-cx)/scale, y:(p.y-cy)/scale }));
+}
+
+function bestAlignment(userN, targetN){
+  // try all rotations x 2 directions, minimize RMSE
+  const n = userN.length;
+  let best = Infinity;
+  const dirs = [userN, userN.slice().reverse()];
+  dirs.forEach(seq=>{
+    for(let off=0; off<n; off++){
+      let sum=0;
+      for(let i=0;i<n;i++){
+        const u = seq[(i+off)%n];
+        const t = targetN[i];
+        sum += (u.x-t.x)*(u.x-t.x) + (u.y-t.y)*(u.y-t.y);
+      }
+      const rmse = Math.sqrt(sum/n);
+      if(rmse < best) best = rmse;
+    }
+  });
+  return best;
+}
+
+function scoreDrawing(strokesArr, targetPath){
+  const allPts = [];
+  strokesArr.forEach(st=> st.forEach(p=>allPts.push(p)));
+  if(allPts.length < 6) return { score:0, drawn:[] };
+
+  const rectUser = resampleClosed(allPts, N);
+  const targetPts = targetPath.map(p=>({x:p[0],y:p[1]}));
+  const rectTarget = resampleClosed(targetPts, N);
+  if(!rectUser || !rectTarget) return { score:0, drawn:allPts };
+
+  const un = normalize(rectUser);
+  const tn = normalize(rectTarget);
+  const rmse = bestAlignment(un, tn);
+
+  // rmse ~0 -> 100, rmse ~0.9+ -> near 0
+  let score = Math.round(100 * Math.exp(-3.1 * rmse));
+  score = Math.max(0, Math.min(100, score));
+  return { score, drawn:allPts };
+}
+
+function gradeFor(score){
+  if(score>=90) return {label:"POLE POSITION", cls:"pole"};
+  if(score>=75) return {label:"PODIUM", cls:"podium"};
+  if(score>=55) return {label:"POINTS FINISH", cls:"points"};
+  if(score>=30) return {label:"OUT OF POINTS", cls:"out"};
+  return {label:"DNF", cls:"dnf"};
+}
+
+/* ============================================================
+   6. SUBMIT / RESULT RENDER
+   ============================================================ */
+document.getElementById("submitBtn").addEventListener("click", ()=>{
+  const { score } = scoreDrawing(strokes, current.path);
+  lastScore = score;
+  scores[current.id] = Math.max(scores[current.id]||0, score);
+  saveScores(scores);
+  renderResult(score);
+  show("result");
+});
+
+const resultCanvas = document.getElementById("resultCanvas");
+const rctx = resultCanvas.getContext("2d");
+
+function renderResult(score){
+  document.getElementById("resultRound").textContent = "ROUND " + String(current.round).padStart(2,"0") + " / 24";
+  document.getElementById("resultName").textContent = current.gp;
+  document.getElementById("scoreNum").innerHTML = score + "<sup>%</sup>";
+  const g = gradeFor(score);
+  const gEl = document.getElementById("scoreGrade");
+  gEl.textContent = g.label;
+  gEl.className = "grade " + g.cls;
+
+  fitCanvas(resultCanvas);
+  const w = resultCanvas.clientWidth, h = resultCanvas.clientHeight;
+  rctx.clearRect(0,0,w,h);
+
+  // fit target path (1000x600 space) into canvas with margin
+  const marginPx = 30;
+  const sx = (w - marginPx*2)/1000;
+  const sy = (h - marginPx*2)/600;
+  const s = Math.min(sx,sy);
+  const offX = (w - 1000*s)/2;
+  const offY = (h - 600*s)/2;
+
+  // draw actual circuit (dashed)
+  rctx.setLineDash([9,7]);
+  rctx.lineWidth = 3;
+  rctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--paper-dim').trim();
+  rctx.beginPath();
+  current.path.forEach((p,i)=>{
+    const x = offX + p[0]*s, y = offY + p[1]*s;
+    if(i===0) rctx.moveTo(x,y); else rctx.lineTo(x,y);
+  });
+  rctx.closePath();
+  rctx.stroke();
+  rctx.setLineDash([]);
+
+  // draw user's strokes, fit into same box (scaled from their own canvas size)
+  if(strokes.length){
+    const allPts = [];
+    strokes.forEach(st=>st.forEach(p=>allPts.push(p)));
+    const minX = Math.min(...allPts.map(p=>p.x));
+    const maxX = Math.max(...allPts.map(p=>p.x));
+    const minY = Math.min(...allPts.map(p=>p.y));
+    const maxY = Math.max(...allPts.map(p=>p.y));
+    const uw = Math.max(1,maxX-minX), uh = Math.max(1,maxY-minY);
+    const us = Math.min((w-marginPx*2)/uw, (h-marginPx*2)/uh);
+    const uOffX = (w - uw*us)/2;
+    const uOffY = (h - uh*us)/2;
+
+    rctx.lineJoin="round"; rctx.lineCap="round";
+    rctx.lineWidth = 4;
+    rctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    rctx.globalAlpha = 0.9;
+    strokes.forEach(st=>{
+      if(st.length<2) return;
+      rctx.beginPath();
+      st.forEach((p,i)=>{
+        const x = uOffX + (p.x-minX)*us, y = uOffY + (p.y-minY)*us;
+        if(i===0) rctx.moveTo(x,y); else rctx.lineTo(x,y);
+      });
+      rctx.stroke();
+    });
+    rctx.globalAlpha = 1;
+  }
+}
+
+window.addEventListener("resize", ()=>{
+  if(document.getElementById("result").classList.contains("active")) renderResult(lastScore);
+});
+
+/* ============================================================
+   7. NAV BUTTONS
+   ============================================================ */
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+  loadCircuit(current);
+  show("game");
+});
+document.getElementById("nextBtn").addEventListener("click", ()=>{
+  orderPos++;
+  if(orderPos >= order.length) buildOrder();
+  loadCircuit(CIRCUITS[order[orderPos]]);
+  show("game");
+});
+
+/* ============================================================
+   8. SEASON OVERLAY
+   ============================================================ */
+const overlay = document.getElementById("seasonOverlay");
+document.getElementById("seasonBtn").addEventListener("click", ()=>{
+  const grid = document.getElementById("seasonGrid");
+  grid.innerHTML = "";
+  CIRCUITS.forEach(c=>{
+    const has = scores[c.id] !== undefined;
+    const chip = document.createElement("button");
+    chip.className = "chip" + (has ? " done" : "");
+    chip.innerHTML = `<div class="rn">RD ${String(c.round).padStart(2,"0")} · ${c.country}</div>
+                       <div class="gn">${c.gp.replace(" Grand Prix","")}</div>
+                       <div class="sc">${has ? scores[c.id]+"% best" : "not drawn"}</div>`;
+    chip.addEventListener("click", ()=>{
+      orderPos = order.indexOf(c.id);
+      if(orderPos === -1){ order.push(c.id); orderPos = order.length-1; }
+      loadCircuit(c);
+      overlay.classList.remove("active");
+      show("game");
+    });
+    grid.appendChild(chip);
+  });
+  overlay.classList.add("active");
+});
+document.getElementById("closeOverlay").addEventListener("click", ()=> overlay.classList.remove("active"));
+overlay.addEventListener("click", (e)=>{ if(e.target===overlay) overlay.classList.remove("active"); });
+
+})();
+</script>
+</body>
+</html>
